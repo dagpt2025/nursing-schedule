@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Nursing Faculty Scheduler — Select Dropdowns (All features kept)</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root{--bg:#f7f7fb;--card:#fff;--text:#1f2937;--muted:#6b7280;--line:#e5e7eb;--accent:#2563eb;--danger:#ef4444}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial;background:var(--bg);color:var(--text)}
+    .container{max-width:1200px;margin:28px auto;padding:0 16px}
+    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap}
+    .title{font-size:28px;font-weight:800;margin:0}
+    .sub{color:var(--muted);margin:6px 0 0}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;margin-bottom:16px;box-shadow:0 10px 20px rgba(0,0,0,.04)}
+    .card header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+    .card h2{font-size:18px;margin:0}
+    .card .content{padding:16px}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+    .grid>.col-2{grid-column:span 2}
+    .grid>.col-3{grid-column:span 3}
+    .grid>.col-4{grid-column:span 4}
+    .grid>.col-6{grid-column:span 6}
+    .grid>.col-12{grid-column:span 12}
+    label{font-size:12px;color:var(--muted);display:block;margin:0 0 6px}
+    select,input[type=text],input[type=date]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;outline:none}
+    select:focus,input[type=text]:focus,input[type=date]:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+    .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    button{cursor:pointer;border:1px solid var(--line);background:#fff;padding:10px 14px;border-radius:10px}
+    button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    button.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+    button.ghost{background:#fff}
+    table{width:100%;border-collapse:separate;border-spacing:0;font-size:14px}
+    thead th{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);text-align:left;padding:12px}
+    tbody td{padding:12px;border-bottom:1px solid var(--line)}
+    tbody tr:hover{background:#fafafa}
+    tbody tr:nth-child(even){background:#fcfcff}
+    .right{text-align:right}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:#f9fafb;font-size:12px}
+    .row-actions{display:flex;gap:8px;justify-content:flex-end}
+    .download-area{display:none;margin-top:8px;gap:8px;align-items:center}
+    .tag{display:inline-block;padding:2px 6px;border:1px solid var(--line);border-radius:8px;background:#f9fafb;color:#6b7280;font-size:12px}
+    a.btn{border:1px solid var(--line);padding:8px 12px;border-radius:10px;text-decoration:none}
+    /* Modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:40}
+    .modal{width:100%;max-width:680px;background:#fff;border-radius:16px;border:1px solid var(--line);box-shadow:0 24px 48px rgba(0,0,0,.25)}
+    .modal header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+    .modal .body{padding:16px}
+    .modal .footer{display:flex;gap:8px;justify-content:flex-end;padding:14px 16px;border-top:1px solid var(--line)}
+    .hint{font-size:12px;color:var(--muted);margin-top:4px}
+    .inline{display:flex;gap:8px;align-items:center}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1 class="title">Nursing Faculty Scheduler</h1>
+        <p class="sub">All features intact + dropdown selects with “Custom” option. Lunch deduction toggle remains OFF by default.</p>
+        <label style="display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);padding:6px 10px;border-radius:10px;">
+          <input type="checkbox" id="breakToggle"> Deduct 0.5 hr lunch break
+        </label>
+      </div>
+      <div class="toolbar">
+        <button id="exportCsvBtn" class="ghost">Export CSV</button>
+        <button id="copyCsvBtn" class="ghost">Copy CSV</button>
+        <button id="previewCsvBtn" class="ghost">Open CSV Preview</button>
+        <button id="exportXlsxBtn" class="ghost">Export XLSX</button>
+        <button id="saveLocalBtn" class="ghost">Save to Browser</button>
+        <button id="restoreLocalBtn" class="ghost">Restore</button>
+        <button id="resetBtn" class="danger">Clear All</button>
+      </div>
+    </div>
+
+    <div id="downloadArea" class="download-area toolbar">
+      <span class="tag">Download ready</span>
+      <a id="csvLink" class="btn" href="#" download="nursing_faculty_schedule.csv" style="display:none">Download CSV</a>
+      <a id="xlsxLink" class="btn" href="#" download="nursing_faculty_schedule.xlsx" style="display:none">Download XLSX</a>
+      <button id="hideDownload" class="ghost">Hide</button>
+    </div>
+
+    <div class="card">
+      <header><h2>Add Schedule Entry</h2></header>
+      <div class="content">
+        <div class="grid">
+          <div class="col-2">
+            <label>Date</label>
+            <input type="date" id="date"/>
+          </div>
+
+          <div class="col-3">
+            <label>Faculty Full Name</label>
+            <div class="inline">
+              <select id="name">
+                <option value="">— Select —</option>
+                <option>Lipkins</option><option>Assayag</option><option>Samad</option><option>Espejo</option>
+                <option>Garvida</option><option>Sortigosa</option><option>Lamas</option><option>Tacandong</option>
+                <option>Manansala</option><option>Harmon</option><option>Thomas</option><option>Laurino</option>
+                <option>Padillo</option><option>Valdez</option><option>Martinez</option><option>Mendiola</option>
+                <option>Wong</option><option>Jugo</option><option>Aguilar</option>
+                <option value="__custom__">Custom…</option>
+              </select>
+              <input id="nameCustom" class="hidden" type="text" placeholder="Type custom name"/>
+            </div>
+          </div>
+
+          <div class="col-3">
+            <label>Clinical Site Assignment</label>
+            <div class="inline">
+              <select id="site">
+                <option value="">— Select —</option>
+                <option>Rosecrans A</option><option>Harbor B</option><option>Kei Ai A</option><option>Beachside B</option>
+                <option>Pacific Palms A</option><option>TCCW</option><option>TCCW B</option><option>Gerontology</option>
+                <option>Sim A 1-7</option><option>Dr. Valery B 8-15</option><option>Maternity</option><option>Endocrine</option>
+                <option>Pharmacology</option><option>RN-BSN</option><option>Make Up / Remediation</option><option>Tutoring</option>
+                <option>Admin</option><option>Leadership</option><option>GI</option><option>Sim B</option><option>Sim C</option>
+                <option>Sim A &amp; B</option><option>Tri-City A</option><option>Dr. Mendoza A</option><option>Dr. Mendoza B</option>
+                <option>Las Flores</option>
+                <option value="__custom__">Custom…</option>
+              </select>
+              <input id="siteCustom" class="hidden" type="text" placeholder="Type custom site"/>
+            </div>
+          </div>
+
+          <div class="col-2">
+            <label>Class Batch (Cohort)</label>
+            <div class="inline">
+              <select id="cohort">
+                <option value="">— Select —</option>
+                <option>VN B111 (D)</option><option>VN B113 (D)</option><option>VN B108 (D)</option>
+                <option>VN B112 (E)</option><option>VN B107 (E)</option><option>VN B109 (E)</option>
+                <option>VN B103</option><option>VN B110</option><option>RN-BSN</option><option>MSN</option><option>NATP/HHA</option>
+                <option value="__custom__">Custom…</option>
+              </select>
+              <input id="cohortCustom" class="hidden" type="text" placeholder="Type custom cohort"/>
+            </div>
+          </div>
+
+          <div class="col-2">
+            <label>Schedule (Time Ranges or Duration)</label>
+            <div class="inline">
+              <select id="times">
+                <option value="">— Select —</option>
+                <option>07:00-15:30</option><option>08:00-16:30</option><option>09:00-15:00</option>
+                <option>15:00-23:30</option><option>21:00-07:00</option>
+                <option>07:00-12:00, 13:00-16:00</option>
+                <option>7:00 am-3:30 pm</option><option>3:00 pm-11:30 pm</option>
+                <option>8 hours</option><option>5.5hrs</option><option>3h, 5h</option>
+                <option value="__custom__">Custom…</option>
+              </select>
+              <input id="timesCustom" class="hidden" type="text" placeholder="e.g., 07:00-15:30 or 8 hours"/>
+            </div>
+            <div class="hint">Pick a template or choose <em>Custom…</em> to type any format. Supports overnight and am/pm.</div>
+          </div>
+
+          <div class="col-12" style="text-align:right">
+            <button id="addBtn" class="primary">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <header>
+        <h2>Schedules</h2>
+        <div class="toolbar">
+          <input type="text" id="search" placeholder="Search by name, site, cohort, or date (YYYY-MM-DD)"/>
+        </div>
+      </header>
+      <div class="content" style="overflow:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>Faculty</th><th>Site</th><th>Cohort</th><th>Schedule</th><th>Total Hours</th><th class="right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="editBackdrop" class="modal-backdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+      <header>
+        <h3 id="editTitle">Edit Schedule Entry</h3>
+        <button id="closeEdit" class="ghost">✕</button>
+      </header>
+      <div class="body">
+        <div class="grid">
+          <div class="col-4"><label>Date</label><input type="date" id="editDate"/></div>
+
+          <div class="col-4">
+            <label>Faculty Full Name</label>
+            <div class="inline">
+              <select id="editName">
+                <option value="">— Select —</option>
+                <option>Lipkins</option><option>Assayag</option><option>Samad</option><option>Espejo</option>
+                <option>Garvida</option><option>Sortigosa</option><option>Lamas</option><option>Tacandong</option>
+                <option>Manansala</option><option>Harmon</option><option>Thomas</option><option>Laurino</option>
+                <option>Padillo</option><option>Valdez</option><option>Martinez</option><option>Mendiola</option>
+                <option>Wong</option><option>Jugo</option><option>Aguilar</option>
+                <option value="__custom__">Custom…</option>
+              </select>
+              <input id="editNameCustom" class="hidden" type="text" placeholder="Type custom name"/>
+            </div>
+          </div>
+
+          <div class="col-4">
+            <label>Clinical Site Assignment</label>
+            <div class="inline">
+              <select id="editSite">
+                <option value="">— Select —</option>
+                <option>Rosecrans A</option><option>Harbor B</option><option>Kei Ai A</option><option>Beachside B</option>
+                <option>Pacific Palms A</option><option>TCCW</option><option>TCCW B</option><option>Gerontology</option>
+                <option>Sim A 1-7</option><option>Dr. Valery B 8-15</option><option>Maternity</option><option>Endocrine</option>
+                <option>Pharmacology</option><option>RN-BSN</option><option>Make Up / Remediation</option><option>Tutoring</option>
+                <option>Admin</option><option>Leadership</option><option>GI</option><option>Sim B</option><option>Sim C</option>
+                <option>Sim A &amp; B</option><option>Tri-City A</option><option>Dr. Mendoza A</option><option>Dr. Mendoza B</option>
+                <option>Las Flores</option>
+                <option value="__custom__">Custom…</option>
+              </select>
+              <input id="editSiteCustom" class="hidden" type="text" placeholder="Type custom site"/>
+            </div>
+          </div>
+
+          <div class="col-6">
+            <label>Class Batch (Cohort)</label>
+            <div class="inline">
+              <select id="editCohort">
+                <option value="">— Select —</option>
+                <option>VN B111 (D)</option><option>VN B113 (D)</option><option>VN B108 (D)</option>
+                <option>VN B112 (E)</option><option>VN B107 (E)</option><option>VN B109 (E)</option>
+                <option>VN B103</option><option>VN B110</option><option>RN-BSN</option><option>MSN</option><option>NATP/HHA</option>
+                <option value="__custom__">Custom…</option>
+              </select>
+              <input id="editCohortCustom" class="hidden" type="text" placeholder="Type custom cohort"/>
+            </div>
+          </div>
+
+          <div class="col-6">
+            <label>Schedule (Time Ranges or Duration)</label>
+            <div class="inline">
+              <select id="editTimes">
+                <option value="">— Select —</option>
+                <option>07:00-15:30</option><option>08:00-16:30</option><option>09:00-15:00</option>
+                <option>15:00-23:30</option><option>21:00-07:00</option>
+                <option>07:00-12:00, 13:00-16:00</option>
+                <option>7:00 am-3:30 pm</option><option>3:00 pm-11:30 pm</option>
+                <option>8 hours</option><option>5.5hrs</option><option>3h, 5h</option>
+                <option value="__custom__">Custom…</option>
+              </select>
+              <input id="editTimesCustom" class="hidden" type="text" placeholder="e.g., 07:00-15:30 or 8 hours"/>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        <button id="saveEdit" class="primary">Save</button>
+        <button id="cancelEdit" class="ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- Helpers for select + custom ----------
+    function valueFromSelect(selectEl, customEl){ return selectEl.value === '__custom__' ? customEl.value.trim() : (selectEl.value || '').trim(); }
+    function toggleCustom(selectEl, customEl){ const show = selectEl.value === '__custom__'; customEl.classList.toggle('hidden', !show); if(show) customEl.focus(); }
+    function setSelectWithValue(selectEl, customEl, value){
+      const opts = Array.from(selectEl.options).map(o => o.value || o.textContent);
+      const exact = opts.find(v => v === value);
+      if(exact){ selectEl.value = value; customEl.classList.add('hidden'); customEl.value = ''; }
+      else if(value){ selectEl.value = '__custom__'; customEl.classList.remove('hidden'); customEl.value = value; }
+      else { selectEl.value = ''; customEl.classList.add('hidden'); customEl.value=''; }
+    }
+
+    // ---------- Time parsing ----------
+    function toMinutes(t){
+      if(!t) return null;
+      const s = t.toString().trim().toLowerCase()
+        .replace(/[\\.]/g, ':')
+        .replace(/[–—]/g,'-')
+        .replace(/\u00A0/g,' ');
+      const ampmMatch = /(am|pm|a|p)\b/.exec(s);
+      const ampm = ampmMatch ? ampmMatch[1] : null;
+      const base = s.replace(/\b(am|pm|a|p)\b/g,'').trim();
+      let [hh, mm='0'] = base.includes(':') ? base.split(':') : [base.slice(0,2), base.slice(2)];
+      let h = parseInt(hh, 10);
+      let m = parseInt(mm, 10) || 0;
+      if(Number.isNaN(h) || m<0 || m>=60) return null;
+      if(ampm){ const isPM = ampm.startsWith('p'); if(isPM && h<12) h+=12; if(!isPM && h===12) h=0; }
+      return h*60+m;
+    }
+    function hoursFromInput(input){
+      if(!input) return 0;
+      const clean = String(input).replace(/\u00A0/g,' ').trim();
+      const parts = clean.split(/[;,]+/).map(s=>s.trim()).filter(Boolean);
+      const durRe = /^([0-9]+(?:\.[0-9]+)?)\s*(h|hr|hrs|hour|hours)$/i;
+      if(parts.length && parts.every(p=>durRe.test(p))){
+        let sum = 0; for(const p of parts){ const m = p.match(durRe); if(m) sum += parseFloat(m[1]); }
+        return Math.round(sum*4)/4;
+      }
+      let total = 0;
+      for(const seg of parts){
+        const [a,b] = seg.split('-').map(x=>x && x.trim());
+        const ms = toMinutes(a), me = toMinutes(b);
+        if(ms==null || me==null) continue;
+        let dur = me - ms; if(dur < 0) dur += 24*60; // overnight
+        total += dur;
+      }
+      return Math.round((total/60)*4)/4;
+    }
+
+    // Lunch deduction (OFF by default)
+    function applyBreak(h){ return document.getElementById('breakToggle').checked ? Math.max(0, Math.round((h - 0.5)*4)/4) : h; }
+
+    // ---------- State & elements ----------
+    const tbody = document.getElementById('tbody');
+    const search = document.getElementById('search');
+    let rows = [];
+
+    // Wire show/hide for add form selects
+    const nameSel = document.getElementById('name'), nameCustom = document.getElementById('nameCustom');
+    const siteSel = document.getElementById('site'), siteCustom = document.getElementById('siteCustom');
+    const cohortSel = document.getElementById('cohort'), cohortCustom = document.getElementById('cohortCustom');
+    const timesSel = document.getElementById('times'), timesCustom = document.getElementById('timesCustom');
+    [ [nameSel,nameCustom],[siteSel,siteCustom],[cohortSel,cohortCustom],[timesSel,timesCustom] ].forEach(([s,c])=> s.addEventListener('change', ()=>toggleCustom(s,c)) );
+
+    // ---------- CRUD ----------
+    function addRow(){
+      const date = (document.getElementById('date').value||'').trim();
+      const name = valueFromSelect(nameSel,nameCustom);
+      const site = valueFromSelect(siteSel,siteCustom);
+      const cohort = valueFromSelect(cohortSel,cohortCustom);
+      const times = valueFromSelect(timesSel,timesCustom);
+      if(!name || !site || !cohort || !times){ alert('Please fill all fields.'); return; }
+      const hoursRaw = hoursFromInput(times);
+      rows.push({date,name,site,cohort,times,hoursRaw});
+      persist();
+      // reset
+      document.getElementById('date').value=''; [nameSel,siteSel,cohortSel,timesSel].forEach(s=>s.value='');
+      [nameCustom,siteCustom,cohortCustom,timesCustom].forEach(i=>{i.value=''; i.classList.add('hidden');});
+      render();
+    }
+
+    function updateRow(index, {date,name,site,cohort,times}){
+      const hoursRaw = hoursFromInput(times);
+      rows[index] = {date,name,site,cohort,times,hoursRaw};
+      persist(); render();
+    }
+
+    function deleteRow(index){ rows.splice(index,1); persist(); render(); }
+
+    // ---------- Modal edit ----------
+    const backdrop = document.getElementById('editBackdrop');
+    const closeEdit = document.getElementById('closeEdit');
+    const cancelEdit = document.getElementById('cancelEdit');
+    const saveEdit = document.getElementById('saveEdit');
+    const editDate = document.getElementById('editDate');
+    const editNameSel = document.getElementById('editName'), editNameCustom = document.getElementById('editNameCustom');
+    const editSiteSel = document.getElementById('editSite'), editSiteCustom = document.getElementById('editSiteCustom');
+    const editCohortSel = document.getElementById('editCohort'), editCohortCustom = document.getElementById('editCohortCustom');
+    const editTimesSel = document.getElementById('editTimes'), editTimesCustom = document.getElementById('editTimesCustom');
+    [ [editNameSel,editNameCustom],[editSiteSel,editSiteCustom],[editCohortSel,editCohortCustom],[editTimesSel,editTimesCustom] ].forEach(([s,c])=> s.addEventListener('change', ()=>toggleCustom(s,c)) );
+
+    let editingIndex = -1;
+    function openEdit(i){
+      editingIndex = i; const r = rows[i];
+      editDate.value = r.date || '';
+      setSelectWithValue(editNameSel, editNameCustom, r.name || '');
+      setSelectWithValue(editSiteSel, editSiteCustom, r.site || '');
+      setSelectWithValue(editCohortSel, editCohortCustom, r.cohort || '');
+      setSelectWithValue(editTimesSel, editTimesCustom, r.times || '');
+      backdrop.style.display='flex';
+    }
+    function closeModal(){ backdrop.style.display='none'; editingIndex=-1; }
+    closeEdit.addEventListener('click', closeModal); cancelEdit.addEventListener('click', closeModal); backdrop.addEventListener('click', e=>{ if(e.target===backdrop) closeModal(); });
+    saveEdit.addEventListener('click', ()=>{
+      if(editingIndex<0) return;
+      const date = (editDate.value||'').trim();
+      const name = valueFromSelect(editNameSel,editNameCustom);
+      const site = valueFromSelect(editSiteSel,editSiteCustom);
+      const cohort = valueFromSelect(editCohortSel,editCohortCustom);
+      const times = valueFromSelect(editTimesSel,editTimesCustom);
+      if(!name || !site || !cohort || !times){ alert('Please fill all fields.'); return; }
+      updateRow(editingIndex, {date,name,site,cohort,times});
+      closeModal();
+    });
+
+    // ---------- Render ----------
+    function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+    function filteredRows(){
+      const q = (search.value||'').trim().toLowerCase();
+      if(!q) return rows;
+      return rows.filter(r =>
+        (r.date||'').toLowerCase().includes(q) || (r.name||'').toLowerCase().includes(q) ||
+        (r.site||'').toLowerCase().includes(q) || (r.cohort||'').toLowerCase().includes(q)
+      );
+    }
+    function render(){
+      const data = filteredRows();
+      tbody.innerHTML='';
+      data.forEach((r,i)=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(r.date||'')}</td>
+          <td>${escapeHtml(r.name||'')}</td>
+          <td>${escapeHtml(r.site||'')}</td>
+          <td>${escapeHtml(r.cohort||'')}</td>
+          <td>${escapeHtml(r.times||'')}</td>
+          <td><span class="pill">${applyBreak(r.hoursRaw)}</span></td>
+          <td class="right"><div class="row-actions">
+            <button class="ghost" data-edit="${i}">Edit</button>
+            <button class="danger" data-del="${i}">Delete</button>
+          </div></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.querySelectorAll('button[data-edit]').forEach(b=> b.addEventListener('click', ()=>openEdit(+b.dataset.edit)) );
+      tbody.querySelectorAll('button[data-del]').forEach(b=> b.addEventListener('click', ()=>{ deleteRow(+b.dataset.del); }) );
+    }
+
+    // ---------- Persistence ----------
+    const STORAGE_KEY = 'facultySchedulerRowsV3_selects';
+    function persist(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); }catch(e){ console.warn('Persist failed', e); } }
+    function restore(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return false;
+        const arr = JSON.parse(raw);
+        if(!Array.isArray(arr)) return false;
+        rows = arr.map(r=>({
+          date:r.date||'', name:r.name||'', site:r.site||'', cohort:r.cohort||'', times:r.times||'',
+          hoursRaw: Number.isFinite(r.hoursRaw)? r.hoursRaw : hoursFromInput(r.times||'')
+        }));
+        return true;
+      }catch(e){ console.error('Restore failed', e); return false; }
+    }
+
+    document.getElementById('saveLocalBtn').addEventListener('click', ()=>{ persist(); alert('Saved locally to this browser.'); });
+    document.getElementById('restoreLocalBtn').addEventListener('click', ()=>{ const ok=restore(); render(); if(!ok) alert('No saved data found in this browser.'); });
+    document.getElementById('resetBtn').addEventListener('click', ()=>{ if(confirm('This will clear ALL rows. Continue?')){ rows=[]; persist(); render(); } });
+
+    // ---------- CSV & XLSX ----------
+    function csvEscape(v){ return '"' + String(v ?? '').replaceAll('"','""') + '"'; }
+    function makeCsv(){
+      const header = ['Date','Faculty','Site','Cohort','Schedule','Total Hours'];
+      const lines = [header.join(',')];
+      for(const r of rows){ lines.push([r.date||'', r.name||'', r.site||'', r.cohort||'', r.times||'', applyBreak(r.hoursRaw)].map(csvEscape).join(',')); }
+      return lines.join('\r\n');
+    }
+    function triggerDownloadBlob(blob, filename, linkEl){
+      if (window.navigator && window.navigator.msSaveOrOpenBlob){ window.navigator.msSaveOrOpenBlob(blob, filename); return; }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download=filename; a.target='_blank'; a.style.display='none';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(()=>URL.revokeObjectURL(url), 200);
+      if(linkEl){ linkEl.href=url; linkEl.style.display='inline-block'; }
+    }
+
+    document.getElementById('exportCsvBtn').addEventListener('click', ()=>{
+      const csv = '\ufeff' + makeCsv(); // BOM for Excel
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      triggerDownloadBlob(blob, 'nursing_faculty_schedule.csv', document.getElementById('csvLink'));
+      document.getElementById('downloadArea').style.display='flex';
+    });
+    document.getElementById('copyCsvBtn').addEventListener('click', async ()=>{
+      try{ await navigator.clipboard.writeText(makeCsv()); alert('CSV copied to clipboard.'); }
+      catch(_){ alert('Clipboard failed. Use Export CSV to download.'); }
+    });
+    document.getElementById('previewCsvBtn').addEventListener('click', ()=>{
+      const header = ['Date','Faculty','Site','Cohort','Schedule','Total Hours'];
+      const rowsHtml = rows.map(r => `<tr><td>${r.date||''}</td><td>${r.name||''}</td><td>${r.site||''}</td><td>${r.cohort||''}</td><td>${r.times||''}</td><td>${applyBreak(r.hoursRaw)}</td></tr>`).join('');
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>CSV Preview</title>
+        <style>body{font-family:ui-sans-serif,system-ui,Arial;margin:0}header{position:sticky;top:0;display:flex;gap:8px;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #e5e7eb;background:#fff;z-index:5}.btn{border:1px solid #e5e7eb;padding:8px 12px;border-radius:10px;background:#fff;cursor:pointer}.btn.primary{background:#2563eb;color:#fff;border-color:#2563eb}.wrap{padding:16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #e5e7eb;padding:8px;text-align:left}thead th{background:#f9fafb;position:sticky;top:54px}</style>
+        </head><body>
+        <header><div><strong>CSV Preview</strong></div>
+          <div><button class="btn" onclick="window.print()">Print</button>
+            <button id="copyBtn" class="btn primary">Copy table to clipboard</button></div></header>
+        <div class="wrap"><table><thead><tr>${header.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>
+        <script>
+          const data = ${JSON.stringify(rows)};
+          function csvEscape(v){return '"' + String(v ?? '').replaceAll('"','""') + '"';}
+          function applyBreakPreview(h){return ${document.getElementById('breakToggle')?.checked ? 'Math.max(0, Math.round((h - 0.5)*4)/4)' : 'h'};}
+          function toCsv(){const header=['Date','Faculty','Site','Cohort','Schedule','Total Hours'];const lines=[header.join(',')];for(const r of data){ lines.push([r.date||'', r.name||'', r.site||'', r.cohort||'', r.times||'', applyBreakPreview(r.hoursRaw)].map(csvEscape).join(',')); }return lines.join('\\r\\n');}
+          document.getElementById('copyBtn').addEventListener('click', async ()=>{try{await navigator.clipboard.writeText(toCsv());alert('CSV copied to clipboard.');}catch(e){alert('Copy failed. Use Export CSV to download.');}});
+        <\/script></body></html>`;
+      const w = window.open('about:blank','_blank'); if(!w){ alert('Popup blocked. Allow popups or use Export CSV.'); return; }
+      w.document.open(); w.document.write(html); w.document.close();
+    });
+    document.getElementById('exportXlsxBtn').addEventListener('click', ()=>{
+      const header = ['Date','Faculty','Site','Cohort','Schedule','Total Hours']; const data = [header];
+      for(const r of rows){ data.push([r.date||'', r.name||'', r.site||'', r.cohort||'', r.times||'', applyBreak(r.hoursRaw)]); }
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Schedule');
+      // ensure Total Hours column is numeric in the sheet
+      const ref = ws['!ref']; if(ref){ const range = XLSX.utils.decode_range(ref); for(let R=1; R<=range.e.r; R++){ const addr = XLSX.utils.encode_cell({r:R,c:5}); if(ws[addr]) ws[addr].t='n'; }}
+      const ab = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      const blob = new Blob([ab], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      triggerDownloadBlob(blob, 'nursing_faculty_schedule.xlsx', document.getElementById('xlsxLink'));
+      document.getElementById('downloadArea').style.display='flex';
+    });
+    document.getElementById('hideDownload').addEventListener('click', ()=>{ document.getElementById('downloadArea').style.display='none'; });
+
+    // ---------- Events ----------
+    document.getElementById('addBtn').addEventListener('click', addRow);
+    search.addEventListener('input', render);
+    document.getElementById('breakToggle').addEventListener('change', render);
+
+    // ---------- Bootstrap ----------
+    restore();
+    render();
+  </script>
+</body>
+</html>
